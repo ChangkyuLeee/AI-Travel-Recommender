@@ -1,0 +1,10 @@
+streamlit
+streamlit-folium
+langchain-openai
+langchain-core
+python-dotenv
+folium
+pandas
+geopandas
+shapely
+requests
