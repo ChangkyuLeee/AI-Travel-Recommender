@@ -1,6 +1,8 @@
 streamlit
 streamlit-folium
 langchain-openai
+langchain-google-genai
+google-generativeai
 langchain-core
 python-dotenv
 folium
