@@ -14,3 +14,5 @@ shapely==2.1.1
 requests==2.32.3
 fiona==1.10.1
 pyproj==3.7.1
+mapclassify==2.9.0
+matplotlib==3.10.3
