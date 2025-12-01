@@ -1,10 +1,10 @@
 streamlit
 streamlit-folium
-langchain
-langchain-community
-langchain-core
-langchain-openai
-langchain-google-genai
+langchain=0.3.25
+langchain-community=0.3.25
+langchain-core=0.3.80
+langchain-openai=0.3.18
+langchain-google-genai=2.0.10
 google-generativeai
 python-dotenv
 folium
@@ -12,4 +12,3 @@ pandas
 geopandas
 shapely
 requests
-pydantic
