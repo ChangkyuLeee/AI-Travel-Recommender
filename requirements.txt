@@ -1,12 +1,15 @@
 streamlit
 streamlit-folium
+langchain
+langchain-community
+langchain-core
 langchain-openai
 langchain-google-genai
 google-generativeai
-langchain-core
 python-dotenv
 folium
 pandas
 geopandas
 shapely
 requests
+pydantic
