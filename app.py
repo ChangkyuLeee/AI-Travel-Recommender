@@ -22,7 +22,7 @@ load_dotenv()
 llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash")
 VWORLD_KEY = os.getenv("VWORLD_KEY")
 tiles = f"https://api.vworld.kr/req/wmts/1.0.0/{VWORLD_KEY}/Base/{{z}}/{{y}}/{{x}}.png" # Base, white, midnight, Hybrid
-
+# hello
 # 헬퍼 함수들
 def Recomm_to_path(region_name, period):
     # print('Recomm')
@@ -534,3 +534,4 @@ if st.sidebar.button("🔄 캐시 새로고침"):
     for key in ["cached_gdf_point", "cached_gdf_line", "last_request_key"]:
         st.session_state.pop(key, None)
     st.rerun()     
+
