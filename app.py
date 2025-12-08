@@ -1,4 +1,6 @@
 import requests
+import math
+import itertools
 import streamlit as st
 from streamlit_folium import st_folium
 from langchain_openai import ChatOpenAI
@@ -23,7 +25,7 @@ tiles = f"https://api.vworld.kr/req/wmts/1.0.0/{VWORLD_KEY}/Base/{{z}}/{{y}}/{{x
 
 # 헬퍼 함수들
 def Recomm_to_path(region_name, period):
-    print('Recomm')
+    # print('Recomm')
     system_instructions = (
         "당신은 사용자가 특정 지역과 여행 기간을 입력하면, 그 기간 동안 추천할 여행 코스를 제공하는 도우미입니다.\n"
         f"여행 지역: {region_name}\n"
@@ -62,7 +64,7 @@ def Recomm_to_path(region_name, period):
         today_theme = gpt_result[day]['테마']
         for dest in gpt_result[day]['장소들']:
             place_name, address_name, place_url, coord_x, coord_y = geocode_keyword(region_name, header, params, destination=dest)
-            print(place_name, address_name, place_url, coord_x, coord_y)
+            # print(place_name, address_name, place_url, coord_x, coord_y)
             
             if coord_x is not None and coord_y is not None:
                 Attr_dict['Attr_day'].append(day)
@@ -86,7 +88,7 @@ def Recomm_to_path(region_name, period):
 
 
 def geocode_keyword(region_name, header, params, destination):
-    print('geocoding')
+    # print('geocoding')
     loc_info = requests.get('https://dapi.kakao.com/v2/local/search/address.json?&query=' + region_name,  # 관광지역 검색
                             headers=header, params=params).json()
     ref_destn = [loc_info['documents'][0]['address']['region_1depth_name'], loc_info['documents'][0]['address']['region_2depth_name']] # 관광지역 시도, 시군구 단위
@@ -138,6 +140,52 @@ def make_clickable(url):
         return f'<a href="{url}" target="_blank">상세보기</a>'
     return "링크 없음"
 
+def Reorder_path(gdf_Point):
+    days = gdf_Point['Attr_day'].unique().tolist()
+    days.sort()
+
+    # 추천경로
+    final_day_list = []
+
+    for day in days:
+        tmp_gpt_Pts = gdf_Point[gdf_Point['Attr_day']==day]
+
+        waypoint_candidate = []
+        for idx, row in tmp_gpt_Pts.iterrows():
+            coord_x = row['geometry'].x
+            coord_y = row['geometry'].y
+            # waypoint_candidate.append(f"{coord_x},{coord_y},name={row['Attr_name']}")
+            waypoint_candidate.append(((coord_x,coord_y),row['Attr_name']))
+
+        nPr = list(itertools.permutations(waypoint_candidate, len(waypoint_candidate)))
+        nPr = [list(n) for n in nPr]
+
+        min_dist = 1e9 # 가장 이동시간이 짧은 경우 탐색
+        for test_waypoints in nPr:
+            tmp_dist = 0
+            for i in range(1, len(test_waypoints)):
+                tmp_dist += math.dist(test_waypoints[i][0], test_waypoints[i-1][0])
+            if tmp_dist < min_dist:
+                min_dist = tmp_dist
+                final_route = test_waypoints
+        final_day_list.append(final_route)
+
+
+    # final_day_list의 각 요소들 별로 정렬하고 하나의 gdf로 병합
+    final_gdf_list = []
+    for day_idx, day in enumerate(days):
+        temp_gdf = gdf_Point.set_index('Attr_name').loc[[place[1] for place in final_day_list[day_idx]]].reset_index()
+        final_gdf_list.append(temp_gdf)
+    gdf_Point_re = pd.concat(final_gdf_list).reset_index(drop=True)
+
+    gdf_Line_re = gdf_Point_re.groupby(['Attr_day', 'Attr_theme'])['geometry'].apply(
+        lambda x: LineString(x.tolist())
+    ).reset_index()
+    
+    return gdf_Point_re, gdf_Line_re
+
+#--#--#--#--#--#--#--#--#--#--#--#--#--#--#--#--#--#--#--#--#--#--#--#--#--#--#
+
 @tool
 def recommend_travel_course(region_name: str, period: str) -> str:
     """
@@ -162,17 +210,49 @@ def recommend_travel_course(region_name: str, period: str) -> str:
             st.session_state["show_tour_map"] = True
             st.session_state["region_name"] = region_name
             st.session_state["period"] = period
+            # 다른 지도 닫기
+            st.session_state["show_reorder_tour_map"] = False
             return "지도를 출력합니다."
 
     except Exception as e:
         return f"지도 생성 중 오류 발생: {str(e)}"
     
 
+@tool
+def reorder_travel_course() -> str:
+    """
+    추천한 여행 경로를 재정렬 및 최적화하여 지도에 표시합니다.
+    """
+    try:
+        region_name = st.session_state["region_name"]
+        period = st.session_state["period"]
+        current_request_key = st.session_state["last_request_key"]
+
+        gdf_Point = st.session_state["cached_gdf_point"]
+        
+        with st.spinner("여행 경로를 최적화하는 중입니다..."):
+            gdf_Point_re, gdf_Line_re = Reorder_path(gdf_Point)
+
+            st.session_state["cached_gdf_point"] = gdf_Point_re
+            st.session_state["cached_gdf_line"] = gdf_Line_re
+
+        # 지도 표시 플래그 켜기
+        st.session_state["show_reorder_tour_map"] = True
+        # 다른 지도 닫기
+        st.session_state["show_tour_map"] = False
+        return "지도를 출력합니다."
+
+    except Exception as e:
+        return f"지도 생성 중 오류 발생: {str(e)}"
+
 # 도구 바인딩
-tools = [recommend_travel_course,
+tools = [
+    recommend_travel_course,
+    reorder_travel_course
          ]
 tool_dict = {
     "recommend_travel_course": recommend_travel_course,
+    "reorder_travel_course":reorder_travel_course,
 }
 llm_with_tools = llm.bind_tools(tools)
 
@@ -200,14 +280,18 @@ def get_ai_response(messages):
 
             st.session_state.messages.append(tool_msg)
 
-            # [핵심] 만약 호출된 도구가 '여행 추천(지도 생성)'이라면?
+            # (재귀 호출 안 함)
             if tool_name == "recommend_travel_course":
                 # 빈 문자열을 yield하여 스트림을 정상 종료 처리 (선택 사항)
                 yield ""
                 return  # <--- 여기서 함수 종료! (재귀 호출 안 함)
+            elif tool_name == "reorder_travel_course":
+                yield ""
+                return  
            
         for chunk in get_ai_response(st.session_state.messages):
             yield chunk
+
 
 # Streamlit 앱
 st.set_page_config(page_title="Tourist Recommender", layout="wide")
@@ -286,16 +370,111 @@ if st.session_state.get("show_tour_map"):
                 )
             ).add_to(m)
 
-            gdf_Line.explore(m=m, column='Attr_day', cmap='tab10', legend=True, style_kwds={"weight":5})
+            gdf_Line.rename(columns={'Attr_day': '일정'}).explore(
+                m=m, column='일정', cmap='tab10', legend=True, style_kwds={"weight":5})
 
             # 지도가 보여질 범위를 설정
             bounds = layer.get_bounds()
             m.fit_bounds(bounds, padding=[50, 50])
 
-            st.markdown(f"{period}간의 {region_name} 여행 지도")
+            st.markdown(f"{period} 간의 {region_name} 여행 지도")
             st_folium(m, use_container_width=True, height=600)
 
             
+            st.divider() # 구분선
+            st.markdown("### 📋 여행지 상세 목록")
+
+            # 1. 보기 좋게 만들기 위해 'geometry' 컬럼 제거 (좌표값 숨김)
+            df_display = gdf_Point.drop(columns=['geometry', 'Attr_URL_html']).copy()
+
+            # 2. 컬럼 이름 한글로 변경
+            st.dataframe(
+                df_display,
+                use_container_width=True, # 가로폭 꽉 채우기
+                hide_index=True,          # 인덱스(0,1,2..) 숨기기
+                column_config={
+                    "Attr_day": st.column_config.TextColumn("일차", width="small"),
+                    "Attr_name": st.column_config.TextColumn("장소명", width="medium"),
+                    "Attr_address": st.column_config.TextColumn("주소", width="large"),
+                    "Attr_theme": st.column_config.TextColumn("테마", width="medium"),
+                    "Attr_URL": st.column_config.LinkColumn(
+                        "상세보기",             # 컬럼 헤더 이름
+                        help="클릭하면 카카오맵으로 이동합니다.", 
+                        display_text="바로가기", # URL 대신 보여줄 텍스트 (예: https://... -> 바로가기)
+                        width="small"
+                    ),
+                }
+            )
+
+            st.divider() # 구분선
+            st.markdown("#### 💡 여행 경로 최적화 제안")
+            col_msg, col_btn = st.columns([0.7, 0.3])
+            with col_msg:
+                st.info("이동 거리가 짧아지도록 여행 코스를 최적화해 드릴까요?")
+            with col_btn:
+                # 버튼을 클릭하면
+                if st.button("경로 최적화 실행", help="이동 거리를 기준으로 경로를 재정렬합니다.", use_container_width=True):
+                    try:
+                        with st.spinner("최적의 경로를 계산 중입니다..."):
+                            # 1. 현재 세션에 저장된 포인트 데이터 가져오기
+                            current_gdf = st.session_state["cached_gdf_point"]
+                            
+                            # 2. 최적화 로직 실행 (Reorder_path 함수 재사용)
+                            gdf_Point_re, gdf_Line_re = Reorder_path(current_gdf)
+
+                            # 3. 최적화된 데이터를 세션에 덮어쓰기
+                            st.session_state["cached_gdf_point"] = gdf_Point_re
+                            st.session_state["cached_gdf_line"] = gdf_Line_re
+                        
+                        # 4. 화면 전환 플래그 설정
+                        st.session_state["show_tour_map"] = False        # 현재 지도 끄기
+                        st.session_state["show_reorder_tour_map"] = True # 최적화 지도 켜기
+                        
+                        # 5. 마지막 요청 키 유지 (데이터가 날아가지 않도록)
+                        # (필요하다면 로깅을 위해 메시지 추가 가능)
+                        # st.session_state.messages.append(AIMessage("경로를 최적화하여 지도를 다시 그렸습니다."))
+
+                        # 6. 화면 새로고침
+                        st.rerun()
+                        
+                    except Exception as e:
+                        st.error(f"최적화 중 오류 발생: {e}")
+
+    
+    except Exception as e:
+            st.error(f"지도를 작성하는 중 오류가 발생했습니다: {e}")
+
+elif st.session_state.get("show_reorder_tour_map"):
+    try:
+        region_name = st.session_state["region_name"]
+        period = st.session_state["period"]
+
+        gdf_Point = st.session_state["cached_gdf_point"]
+        gdf_Line = st.session_state["cached_gdf_line"]
+
+        if gdf_Point is not None:
+            m = folium.Map(control_scale=True, tiles=None)
+            folium.TileLayer(tiles=tiles, attr="VWorld").add_to(m)
+
+            # GeoJson으로 gdf 추가
+            layer = folium.GeoJson(
+                gdf_Point, name="추천 장소",
+                popup=folium.features.GeoJsonPopup(
+                                            fields=['Attr_name', 'Attr_address', 'Attr_theme', 'Attr_URL_html'],
+                                            aliases=['장소명', '주소', '여행테마', 'URL']
+                )
+            ).add_to(m)
+
+            gdf_Line.rename(columns={'Attr_day': '일정'}).explore(
+                m=m, column='일정', cmap='tab10', legend=True, style_kwds={"weight":5})
+
+            # 지도가 보여질 범위를 설정
+            bounds = layer.get_bounds()
+            m.fit_bounds(bounds, padding=[50, 50])
+
+            st.markdown(f"{period} 간의 {region_name} 여행 지도")
+            st_folium(m, use_container_width=True, height=600)
+
             st.divider() # 구분선
             st.markdown("### 📋 여행지 상세 목록")
 
@@ -327,6 +506,7 @@ if st.session_state.get("show_tour_map"):
 
 # ===== 지도 닫기 버튼 =====
 if any([st.session_state.get("show_tour_map"),
+        st.session_state.get("show_reorder_tour_map"),
         ]):
     st.info("🗺️ 현재 지도 출력 중")
             
@@ -334,8 +514,11 @@ if any([st.session_state.get("show_tour_map"),
         # 모두 끄고 마지막 지도 기록
         if st.session_state["show_tour_map"]:
             st.session_state["last_shown_map"] = "show_tour_map"
+        elif st.session_state["show_reorder_tour_map"]:
+            st.session_state["last_shown_map"] = "show_reorder_tour_map"
 
         st.session_state["show_tour_map"] = False
+        st.session_state["show_reorder_tour_map"] = False
 
 else:
     if st.button("지도 열기"):
@@ -343,9 +526,11 @@ else:
 
         if last == "show_tour_map":
             st.session_state["show_tour_map"] = True
+        elif last == "show_reorder_tour_map":
+            st.session_state["show_reorder_tour_map"] = True
 
 
 if st.sidebar.button("🔄 캐시 새로고침"):
     for key in ["cached_gdf_point", "cached_gdf_line", "last_request_key"]:
         st.session_state.pop(key, None)
-    st.rerun()          
+    st.rerun()     
