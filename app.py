@@ -17,9 +17,31 @@ import warnings
 # pyproj CRS 경고 숨기기
 warnings.filterwarnings("ignore", message="Geometry is in a geographic CRS.*")
 load_dotenv()
+
 # 모델 초기화
+st.sidebar.title("🤖 모델 설정")
+model_option = st.sidebar.radio(
+    "사용할 모델을 선택하세요:",
+    ("Gemini 2.5 Flash (Google)", "GPT-5 Nano (OpenAI)"),
+    index=0  # 기본값: 0은 첫 번째(Gemini), 1은 두 번째(GPT)
+)
+# 선택된 옵션에 따라 모델 초기화
+if "Gemini" in model_option:
+    # Google Gemini 설정
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash-lite"
+    )
+    st.sidebar.success("Gemini 모델이 선택되었습니다.")
+if "GPT" in model_option:
+    # OpenAI GPT 설정
+    llm = ChatOpenAI(
+        model="gpt-5-nano"
+    )
+    st.sidebar.info("GPT 모델이 선택되었습니다.")
+
+
 # llm = ChatOpenAI(model="gpt-5-nano")
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash-lite")
+# llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash-lite")
 VWORLD_KEY = os.getenv("VWORLD_KEY")
 tiles = f"https://api.vworld.kr/req/wmts/1.0.0/{VWORLD_KEY}/Base/{{z}}/{{y}}/{{x}}.png" # Base, white, midnight, Hybrid
 
@@ -901,3 +923,4 @@ if st.sidebar.button("🔄 캐시 새로고침"):
     for key in ["cached_gdf_point", "cached_gdf_line", "cached_gdf_point_accom", "cached_gdf_line_accom", "last_request_key"]:
         st.session_state.pop(key, None)
     st.rerun()
+
