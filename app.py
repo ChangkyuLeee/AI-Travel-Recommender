@@ -5,6 +5,7 @@ import streamlit as st
 from streamlit_folium import st_folium
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
 from langchain_core.tools import tool
 import os, json
@@ -20,6 +21,7 @@ load_dotenv()
 
 VWORLD_KEY = os.getenv("VWORLD_KEY")
 tiles = f"https://api.vworld.kr/req/wmts/1.0.0/{VWORLD_KEY}/Base/{{z}}/{{y}}/{{x}}.png" # Base, white, midnight, Hybrid
+HUGGINGFACEHUB_API_TOKEN = os.getenv("HUGGINGFACEHUB_API_TOKEN")
 
 # 헬퍼 함수들
 def Recomm_to_path(region_name, period):
@@ -151,10 +153,12 @@ def Recomm_to_path_with_accom(region_name, accom, period):
 
 def geocode_keyword(region_name, header, params, destination):
     # print('geocoding')
-    loc_info = requests.get('https://dapi.kakao.com/v2/local/search/address.json?&query=' + region_name,  # 관광지역 검색
-                            headers=header, params=params).json()
-    ref_destn = [loc_info['documents'][0]['address']['region_1depth_name'], loc_info['documents'][0]['address']['region_2depth_name']] # 관광지역 시도, 시군구 단위
-
+    try:
+        loc_info = requests.get('https://dapi.kakao.com/v2/local/search/address.json?&query=' + region_name,  # 관광지역 검색
+                                headers=header, params=params).json()
+        ref_destn = [loc_info['documents'][0]['address']['region_1depth_name'], loc_info['documents'][0]['address']['region_2depth_name']] # 관광지역 시도, 시군구 단위
+    except (IndexError, KeyError, TypeError):
+        ref_destn = ["", ""]
     loc_info = requests.get('https://dapi.kakao.com/v2/local/search/keyword.json?&query=' + destination, # 관광지 검색
                                 headers=header, params=params).json()
 
@@ -165,6 +169,14 @@ def geocode_keyword(region_name, header, params, destination):
     coord_y = None
 
     for loc in loc_info['documents']: # 카카오 결과 목록에서
+        if ref_destn[0] == "" and ref_destn[1] == "": # 지역 필터가 아예 없을 때 (복합 지역인 경우) -> 가장 정확도 높은 첫 번째 결과 선택
+            place_name = loc['place_name']
+            address_name = loc['address_name']
+            place_url = loc['place_url']
+            coord_x = loc['x']
+            coord_y = loc['y']
+            break
+
         if ref_destn[1] == '': # 시군구 단위 없을 때
             if ref_destn[0] in loc['address_name']: # 시도 단위만 맞으면
                 place_name = loc['place_name']
@@ -195,39 +207,44 @@ def geocode_keyword(region_name, header, params, destination):
                 coord_y = None
     
     if (coord_x == None) & (len(destination.split()) > 1):
-        loc_info = requests.get('https://dapi.kakao.com/v2/local/search/keyword.json?&query=' + destination.split()[0], # 관광지 검색
-                            headers=header, params=params).json()
-                            
-        for loc in loc_info['documents']: # 카카오 결과 목록에서
-            if ref_destn[1] == '': # 시군구 단위 없을 때
-                if ref_destn[0] in loc['address_name']: # 시도 단위만 맞으면
+        try:
+            loc_info = requests.get('https://dapi.kakao.com/v2/local/search/keyword.json?&query=' + destination.split()[0], # 관광지 검색
+                                headers=header, params=params).json()
+                                
+            for loc in loc_info['documents']: # 카카오 결과 목록에서
+                if ref_destn[0] == "" and ref_destn[1] == "": # 여기도 동일하게 필터 없으면 바로 통과
                     place_name = loc['place_name']
                     address_name = loc['address_name']
                     place_url = loc['place_url']
                     coord_x = loc['x']
                     coord_y = loc['y']
                     break
-            else: # 시군구 단위도 있을 때
-                if (ref_destn[0] in loc['address_name']) and (ref_destn[1] in loc['address_name']): # 시도, 시군구 단위 모두 맞을 때
-                    place_name = loc['place_name']
-                    address_name = loc['address_name']
-                    place_url = loc['place_url']
-                    coord_x = loc['x']
-                    coord_y = loc['y']
-                    break
-                elif (ref_destn[0] in loc['address_name']): # 시도 단위라도 맞을 때
-                    place_name = loc['place_name']
-                    address_name = loc['address_name']
-                    place_url = loc['place_url']
-                    coord_x = loc['x']
-                    coord_y = loc['y']
-                else: # 그 외 경우
-                    place_name = None
-                    address_name = None
-                    place_url = None
-                    coord_x = None
-                    coord_y = None
 
+                if ref_destn[1] == '': # 시군구 단위 없을 때
+                    if ref_destn[0] in loc['address_name']: # 시도 단위만 맞으면
+                        place_name = loc['place_name']
+                        address_name = loc['address_name']
+                        place_url = loc['place_url']
+                        coord_x = loc['x']
+                        coord_y = loc['y']
+                        break
+                else: # 시군구 단위도 있을 때
+                    if (ref_destn[0] in loc['address_name']) and (ref_destn[1] in loc['address_name']): # 시도, 시군구 단위 모두 맞을 때
+                        place_name = loc['place_name']
+                        address_name = loc['address_name']
+                        place_url = loc['place_url']
+                        coord_x = loc['x']
+                        coord_y = loc['y']
+                        break
+                    elif (ref_destn[0] in loc['address_name']): # 시도 단위라도 맞을 때
+                        place_name = loc['place_name']
+                        address_name = loc['address_name']
+                        place_url = loc['place_url']
+                        coord_x = loc['x']
+                        coord_y = loc['y']
+
+        except: # 그 외 경우
+            pass
 
     return place_name, address_name, place_url, coord_x, coord_y
 
@@ -454,7 +471,7 @@ st.title("관광추천 챗봇")
 st.sidebar.title("모델 설정")
 model_option = st.sidebar.radio(
     "사용할 모델을 선택하세요:",
-    ("Gemini 2.5 Flash (Google)", "GPT-5 Nano (OpenAI)"),
+    ("Gemini 2.5 Flash (Google)", "GPT-5 Nano (OpenAI)", "Hugging Face Endpoints"),
     index=0  # 기본값: 0은 첫 번째(Gemini), 1은 두 번째(GPT)
 )
 # 선택된 옵션에 따라 모델 초기화
@@ -470,6 +487,20 @@ elif "GPT" in model_option:
         model="gpt-5-nano"
     )
     st.sidebar.info("GPT 모델이 선택되었습니다.")
+elif "Hugging" in model_option:
+    # Hugging Face 설정
+    repo_id = "openai/gpt-oss-120b"
+        
+    llm = HuggingFaceEndpoint(
+        repo_id = repo_id,  # 모델 저장소 ID를 지정
+        max_new_tokens=2048,
+        temperature=0.01,
+        huggingfacehub_api_token=HUGGINGFACEHUB_API_TOKEN
+    )
+    # 2. 채팅 모델 래퍼 씌우기 (ChatHuggingFace)
+    llm = ChatHuggingFace(llm=llm)
+
+    st.sidebar.info("Hugging Face 모델이 선택되었습니다.")
 
 llm_with_tools = llm.bind_tools(tools)
 
@@ -599,8 +630,9 @@ if st.session_state.get("show_tour_map"):
             bounds = layer.get_bounds()
             m.fit_bounds(bounds, padding=[50, 50])
 
-            st.markdown(f"{period} 간의 {region_name} 여행 지도")
-            st_folium(m, use_container_width=True, height=600)
+            with st.container():
+                st.markdown(f"{period} 간의 {region_name} 여행 지도")
+                st_folium(m, use_container_width=True, height=600, returned_objects=[])
 
             
             st.divider() # 구분선
@@ -694,8 +726,9 @@ elif st.session_state.get("show_tour_map_accom"):
             bounds = layer.get_bounds()
             m.fit_bounds(bounds, padding=[50, 50])
 
-            st.markdown(f"{period} 간의 {region_name} 여행 지도")
-            st_folium(m, use_container_width=True, height=600)
+            with st.container():
+                st.markdown(f"{period} 간의 {region_name} 여행 지도")
+                st_folium(m, use_container_width=True, height=600, returned_objects=[])
 
             
             st.divider() # 구분선
@@ -884,6 +917,7 @@ if any([st.session_state.get("show_tour_map"),
         st.session_state.get("show_reorder_tour_map"),
         st.session_state.get("show_reorder_tour_map_accom"),
         ]):
+    st.divider() # 구분선
     st.info("🗺️ 현재 지도 출력 중")
             
     if st.button("지도 닫기"):
@@ -903,6 +937,7 @@ if any([st.session_state.get("show_tour_map"),
         st.session_state["show_reorder_tour_map_accom"] = False
 
 else:
+    st.divider() # 구분선
     if st.button("지도 열기"):
         last = st.session_state.get("last_shown_map")
 
