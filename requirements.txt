@@ -2,9 +2,10 @@ streamlit==1.41.1
 streamlit-folium==0.25.0
 langchain==0.3.25
 langchain-community==0.3.25
-langchain-core==0.3.80
 langchain-openai==0.3.18
 langchain-google-genai==2.0.10
+langchain-huggingface==1.2.0
+langchain-core==1.2.4
 google-generativeai==0.8.5
 python-dotenv==1.1.0
 folium==0.19.6
