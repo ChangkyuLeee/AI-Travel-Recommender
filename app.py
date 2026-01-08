@@ -663,6 +663,10 @@ if st.session_state.get("show_tour_map"):
             gdf_Line.rename(columns={'Attr_day': '일정'}).explore(
                 m=m, column='일정', cmap='tab10', legend=True, style_kwds={"weight":5})
 
+            if not st.session_state.get("map_force_refreshed", False):
+                st.session_state["map_force_refreshed"] = True
+                st.rerun() # 페이지를 다시 실행하여 레이아웃을 다시 잡음
+            
             # 지도가 보여질 범위를 설정
             bounds = layer.get_bounds()
             m.fit_bounds(bounds, padding=[50, 50])
@@ -993,6 +997,7 @@ if st.sidebar.button("🔄 캐시 새로고침"):
     for key in ["cached_gdf_point", "cached_gdf_line", "cached_gdf_point_accom", "cached_gdf_line_accom", "last_request_key"]:
         st.session_state.pop(key, None)
     st.rerun()          
+
 
 
 
