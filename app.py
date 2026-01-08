@@ -471,6 +471,34 @@ st.set_page_config(page_title="Tourist Recommender",
                    layout="wide",
                    initial_sidebar_state="collapsed"
                    )
+
+# iframe 여백 제거 CSS
+st.markdown("""
+<style>
+    /* 1. iframe(지도)을 감싸는 컨테이너의 하단 여백 제거 */
+    .element-container:has(iframe) {
+        margin-bottom: 0rem !important;
+        padding-bottom: 0rem !important;
+    }
+    
+    /* 2. iframe 자체를 블록 요소로 만들어 하단 미세 공백 제거 */
+    iframe {
+        display: block;
+    }
+    
+    /* 3. 지도 바로 다음에 오는 표(Dataframe)와의 간격 조정 */
+    /* 필요에 따라 -1rem 값을 조절해서 간격을 더 좁히거나 넓힐 수 있습니다 */
+    .stDataFrame {
+        margin-top: -0.5rem !important; 
+    }
+    
+    /* (옵션) 수직 블록 간의 기본 간격 줄이기 */
+    .stVerticalBlock > div {
+        gap: 0.5rem;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 st.title("관광추천 챗봇")
 
 st.sidebar.title("모델 설정")
@@ -965,6 +993,7 @@ if st.sidebar.button("🔄 캐시 새로고침"):
     for key in ["cached_gdf_point", "cached_gdf_line", "cached_gdf_point_accom", "cached_gdf_line_accom", "last_request_key"]:
         st.session_state.pop(key, None)
     st.rerun()          
+
 
 
 
