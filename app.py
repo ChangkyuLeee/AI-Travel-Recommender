@@ -354,6 +354,7 @@ def Reorder_path_with_accom(gdf_Point):
 @tool
 def recommend_travel_course(region_name: str, period: str) -> str:
     """
+    (중요!) 사용자가 숙소를 구체적으로 언급하지 않았을 때 사용하세요.
     특정 지역과 여행 기간을 받아 추천할 여행 코스를 지도에 표시합니다.
     Args:
         region_name (str): '서울특별시', '성북구', '인천광역시 동구', '제주도' 등의 지역명
@@ -388,6 +389,7 @@ def recommend_travel_course(region_name: str, period: str) -> str:
 @tool
 def recommend_travel_course_with_accom(region_name: str, accom: str, period: str) -> str:
     """
+    (중요!) 사용자가 '숙소' 또는 '호텔'의 이름을 명확히 알려주었을 때만 사용하세요.
     특정 지역과 숙소 명칭, 여행 기간을 받아 추천할 여행 코스를 지도에 표시합니다.
     Args:
         region_name (str): '서울특별시', '성북구', '인천광역시 동구', '제주도' 등의 지역명
@@ -957,4 +959,5 @@ if st.sidebar.button("🔄 캐시 새로고침"):
     for key in ["cached_gdf_point", "cached_gdf_line", "cached_gdf_point_accom", "cached_gdf_line_accom", "last_request_key"]:
         st.session_state.pop(key, None)
     st.rerun()          
+
 
