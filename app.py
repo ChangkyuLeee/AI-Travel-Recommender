@@ -477,7 +477,7 @@ st.sidebar.title("모델 설정")
 model_option = st.sidebar.radio(
     "사용할 모델을 선택하세요:",
     ("Gemini 2.5 Flash (Google)", "GPT-5 Nano (OpenAI)", "Hugging Face (GPT-4)", "Hugging Face (MiniMax)"),
-    index=0  # 기본값: 0은 첫 번째(Gemini), 1은 두 번째(GPT)
+    index=2  # 기본값: 0은 첫 번째(Gemini), 1은 두 번째(GPT)
 )
 # 선택된 옵션에 따라 모델 초기화
 if "Gemini" in model_option:
@@ -965,6 +965,7 @@ if st.sidebar.button("🔄 캐시 새로고침"):
     for key in ["cached_gdf_point", "cached_gdf_line", "cached_gdf_point_accom", "cached_gdf_line_accom", "last_request_key"]:
         st.session_state.pop(key, None)
     st.rerun()          
+
 
 
 
