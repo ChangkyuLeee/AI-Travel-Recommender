@@ -467,13 +467,16 @@ tool_dict = {
 }
 
 # Streamlit 앱
-st.set_page_config(page_title="Tourist Recommender", layout="wide")
+st.set_page_config(page_title="Tourist Recommender",
+                   layout="wide",
+                   initial_sidebar_state="collapsed"
+                   )
 st.title("관광추천 챗봇")
 
 st.sidebar.title("모델 설정")
 model_option = st.sidebar.radio(
     "사용할 모델을 선택하세요:",
-    ("Gemini 2.5 Flash (Google)", "GPT-5 Nano (OpenAI)", "Hugging Face Endpoints"),
+    ("Gemini 2.5 Flash (Google)", "GPT-5 Nano (OpenAI)", "Hugging Face (GPT-4)", "Hugging Face (MiniMax)"),
     index=0  # 기본값: 0은 첫 번째(Gemini), 1은 두 번째(GPT)
 )
 # 선택된 옵션에 따라 모델 초기화
@@ -483,7 +486,7 @@ if "Gemini" in model_option:
         model="gemini-2.5-flash-lite"
     )
     st.sidebar.success("Gemini 모델이 선택되었습니다.")
-elif "GPT" in model_option:
+elif "GPT-5" in model_option:
     # OpenAI GPT 설정
     llm = ChatOpenAI(
         model="gpt-5-nano"
@@ -491,7 +494,10 @@ elif "GPT" in model_option:
     st.sidebar.info("GPT 모델이 선택되었습니다.")
 elif "Hugging" in model_option:
     # Hugging Face 설정
-    repo_id = "openai/gpt-oss-120b"
+    if "GPT-4" in model_option:
+        repo_id = "openai/gpt-oss-120b"
+    elif 'Mini' in model_option:
+        repo_id = "MiniMaxAI/MiniMax-M2.1"
         
     llm = HuggingFaceEndpoint(
         repo_id = repo_id,  # 모델 저장소 ID를 지정
@@ -959,5 +965,6 @@ if st.sidebar.button("🔄 캐시 새로고침"):
     for key in ["cached_gdf_point", "cached_gdf_line", "cached_gdf_point_accom", "cached_gdf_line_accom", "last_request_key"]:
         st.session_state.pop(key, None)
     st.rerun()          
+
 
 
