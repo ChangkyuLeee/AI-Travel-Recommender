@@ -546,7 +546,8 @@ def get_ai_response(messages):
             yield chunk
     else:
         # tool 호출 없는 일반 응답
-        yield gathered
+        # yield gathered
+        pass
 
 
 
@@ -956,3 +957,4 @@ if st.sidebar.button("🔄 캐시 새로고침"):
     for key in ["cached_gdf_point", "cached_gdf_line", "cached_gdf_point_accom", "cached_gdf_line_accom", "last_request_key"]:
         st.session_state.pop(key, None)
     st.rerun()          
+
